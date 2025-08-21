@@ -1,5 +1,8 @@
 import os
 
+RED = "\033[91m"
+RESET = "\033[0m"
+
 EXAM_DIR = "exams"
 
 def create_exam_dir():
@@ -61,6 +64,30 @@ def import_vocabulary(file_path):
         print(f"导入词库时出错: {str(e)}")
         return None
 
+def highlight_errors(answer, user_answer):
+    if not user_answer:
+        return f"{RED}{'_' * len(answer)}{RESET}"
+
+    max_len = max(len(answer), len(user_answer))
+    highlighted = []
+
+    for i in range(max_len):
+        ans_char = answer[i].lower() if i < len(answer) else None
+        user_char = user_answer[i].lower() if i < len(user_answer) else None
+
+        display_char = user_answer[i] if i < len(user_answer) else ' '
+
+        if ans_char is None:
+            highlighted.append(f"{RED}{display_char}{RESET}")
+        elif user_char is None:
+            highlighted.append(f"{RED}_{RESET}")
+        elif ans_char != user_char:
+            highlighted.append(f"{RED}{display_char}{RESET}")
+        else:
+            highlighted.append(display_char)
+
+    return ''.join(highlighted)
+
 def dictation(vocabulary, file_name):
     if not vocabulary:
         print("没有可听写的内容，请先导入有效的词库")
@@ -109,8 +136,8 @@ def dictation(vocabulary, file_name):
         print("-" * line_length)
 
         for answer, user_answer in incorrect:
-            display_user = user_answer if user_answer else "（未作答）"
-            print(f"{answer:<{max_answer_len}} | {display_user:<{max_user_len}}")
+            highlighted_user = highlight_errors(answer, user_answer)
+            print(f"{answer:<{max_answer_len}} | {highlighted_user:<{max_user_len}}")
 
         print("-" * line_length)
 
