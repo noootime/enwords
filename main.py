@@ -146,21 +146,30 @@ def main():
 
     create_exam_dir()
 
-    file_path = select_exam_file()
-    if not file_path:
-        print("未选择任何文件，程序结束。")
-        return
+    while True:
+        file_path = select_exam_file()
+        if not file_path:
+            print("未选择任何文件，程序结束。")
+            break
 
-    file_name = os.path.basename(file_path)
+        file_name = os.path.basename(file_path)
 
-    vocabulary = import_vocabulary(file_path)
-    if not vocabulary:
-        print("词库导入失败，请检查文件路径是否正确。")
-        return
+        vocabulary = import_vocabulary(file_path)
+        if not vocabulary:
+            print("词库导入失败，请检查文件路径是否正确。")
+            continue
 
-    dictation(vocabulary, file_name)
+        dictation(vocabulary, file_name)
 
-    print("\n程序结束，感谢使用！")
+        while True:
+            choice = input("\n听写已完成。按回车键重新选择词库，输入 q/Q 退出程序：").strip().lower()
+            if choice == 'q':
+                print("程序结束，感谢使用！")
+                return
+            elif choice == '':
+                break
+            else:
+                print("无效输入，请按回车键重新开始或输入 q/Q 退出。")
 
 if __name__ == '__main__':
     main()
