@@ -3,4 +3,8 @@ name = "enwords"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "click>=8.2.1",
+    "questionary==2.0.1",
+    "rich>=14.1.0",
+]
