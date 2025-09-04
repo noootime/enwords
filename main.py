@@ -1,175 +1,78 @@
-import os
+import questionary
+from prompt_toolkit.document import Document
+from questionary import Validator, ValidationError
+from rich.align import Align
+from rich.layout import Layout
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
-RED = "\033[91m"
-RESET = "\033[0m"
+from src.controllers import DictationController
+from src.core import VocabularyManager
+from src.views import Render
 
-EXAM_DIR = "exams"
+vocabulary_manager = VocabularyManager()
 
-def create_exam_dir():
-    if not os.path.exists(EXAM_DIR):
-        os.makedirs(EXAM_DIR)
-        print(f"已创建考试目录 {os.path.abspath(EXAM_DIR)}")
-    else:
-        print(f"使用考试目录 {os.path.abspath(EXAM_DIR)}")
-
-def list_exam_files():
-    if not os.path.exists(EXAM_DIR):
-        return []
-    files = [f for f in os.listdir(EXAM_DIR)
-             if os.path.isfile(os.path.join(os.path.abspath(EXAM_DIR), f))
-             and f.lower().endswith('.txt')]
-    return sorted(files)
-
-def select_exam_file():
-    files = list_exam_files()
-    if not files:
-        print("\n考试目录中没有找到任何txt文件。")
-        print(f"请将词库文件放入 {os.path.abspath(EXAM_DIR)} 目录后重试。")
-        return None
-
-    print("\n请选择要听写的词库文件：")
-    for i, file in enumerate(files, 1):
-        file_path = os.path.join(EXAM_DIR, file)
-        file_size = os.path.getsize(file_path)
-        print(f"  {i}. {file} ({file_size} 字节)")
-
-    while True:
-        try:
-            choice = input("\n请输入文件序号 (1-{})：".format(len(files)))
-            choice_idx = int(choice) - 1
-            if 0 <= choice_idx < len(files):
-                file_path = os.path.join(EXAM_DIR, files[choice_idx])
-                return file_path
-            else:
-                print("请输入有效的序号（1-{})".format(len(files)))
-        except ValueError:
-            print("无效的输入，请输入一个数字。")
-
-def import_vocabulary(file_path):
-    if not os.path.exists(file_path):
-        print(f"File {file_path} does not exist.")
-        return None
-
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            vocabulary = [line.strip() for line in file if line.strip()]
-
-        if not vocabulary:
-            print("警告：词库文件为空！")
-            return None
-
-        print(f"成功导入 {len(vocabulary)} 个词条。")
-        return  vocabulary
-    except Exception as e:
-        print(f"导入词库时出错: {str(e)}")
-        return None
-
-def highlight_errors(answer, user_answer):
-    if not user_answer:
-        return f"{RED}{'_' * len(answer)}{RESET}"
-
-    max_len = max(len(answer), len(user_answer))
-    highlighted = []
-
-    for i in range(max_len):
-        ans_char = answer[i].lower() if i < len(answer) else None
-        user_char = user_answer[i].lower() if i < len(user_answer) else None
-
-        display_char = user_answer[i] if i < len(user_answer) else ' '
-
-        if ans_char is None:
-            highlighted.append(f"{RED}{display_char}{RESET}")
-        elif user_char is None:
-            highlighted.append(f"{RED}_{RESET}")
-        elif ans_char != user_char:
-            highlighted.append(f"{RED}{display_char}{RESET}")
-        else:
-            highlighted.append(display_char)
-
-    return ''.join(highlighted)
-
-def dictation(vocabulary, file_name):
-    if not vocabulary:
-        print("没有可听写的内容，请先导入有效的词库")
-        return
-
-    total = len(vocabulary)
-    user_answers = []
-
-    print(f"\n=========== 开始听写： {file_name} ===========")
-    print(f"总共 {total} 个词条，请开始听写：")
-    print("提示：回车提交答案，如果不会，直接回车即可")
-
-    for i in range(total):
-        prompt = f"[{i+1}] 请输入："
-        user_input = input(prompt).strip()
-        user_answers.append(user_input)
-
-    correct = 0
-    incorrect = []
-
-    for i in range(total):
-        answer = vocabulary[i]
-        user_answer = user_answers[i]
-
-        if answer.lower() == user_answer.lower():
-            correct += 1
-        else:
-            incorrect.append((answer, user_answer))
-
-    score = int((correct / total) * 100) if total > 0 else 0
-
-    print("\n=========== 结果 ===========")
-    print(f"词库：{file_name}")
-    print(f"正确：{correct}")
-    print(f"错误：{len(incorrect)}")
-    print(f"得分：{score}")
-
-    if incorrect:
-        print("\n错误列表：")
-        max_answer_len = max(len(item[0]) for item in incorrect)
-        max_user_len = max(len(item[1]) for item in incorrect)
-        line_length = max_answer_len + max_user_len + 7
-
-        print("-" * line_length)
-        print(f"{'答案':<{max_answer_len}} | {'你的答案':<{max_user_len}}")
-        print("-" * line_length)
-
-        for answer, user_answer in incorrect:
-            highlighted_user = highlight_errors(answer, user_answer)
-            print(f"{answer:<{max_answer_len}} | {highlighted_user:<{max_user_len}}")
-
-        print("-" * line_length)
+render = Render()
 
 def main():
-    print("欢迎使用ListenWrite！")
+    with render.console.screen() as screen:
+        init_layout()
+        vocabularies = vocabulary_manager.list_vocabularies()
+        show_vocabulary_list(vocabularies)
 
-    create_exam_dir()
+        selected_idx = select_vocabulary(vocabularies)
+        vocabulary = vocabularies[selected_idx]
 
-    while True:
-        file_path = select_exam_file()
-        if not file_path:
-            print("未选择任何文件，程序结束。")
-            break
+        controller = DictationController(vocabulary, render)
+        controller.start_dictation()
 
-        file_name = os.path.basename(file_path)
+def init_layout():
+    layout = Layout(size=20)
+    layout.split_column(
+        Layout(name="header", size=5),
+        Layout(name="content", size=20),
+        Layout(name="footer", size=3)
+    )
 
-        vocabulary = import_vocabulary(file_path)
-        if not vocabulary:
-            print("词库导入失败，请检查文件路径是否正确。")
-            continue
+    welcome_text = Text.assemble("Welcome to use ", ("ENWORDS!", "bold red"), "!", justify="center")
+    welcome = Panel(welcome_text, padding=1)
+    layout["header"].update(welcome)
+    footer_text = Text.assemble("Powered by Shawn Niu", justify="right")
+    footer = Panel(footer_text)
+    layout["footer"].update(footer)
 
-        dictation(vocabulary, file_name)
+def show_vocabulary_list(vocabularies):
+    table = Table(title="Vocabulary List")
+    table.add_column("ID", justify="right", style="", no_wrap=True)
+    table.add_column("NAME", justify="left", style="green", no_wrap=True)
+    table.add_column("COUNT", justify="center", style="red", no_wrap=True)
+    for v in vocabularies:
+        table.add_row(str(v.idx), v.name, str(len(v.words)))
 
-        while True:
-            choice = input("\n听写已完成。按回车键重新选择词库，输入 q/Q 退出程序：").strip().lower()
-            if choice == 'q':
-                print("程序结束，感谢使用！")
-                return
-            elif choice == '':
-                break
-            else:
-                print("无效输入，请按回车键重新开始或输入 q/Q 退出。")
+    render.layout.update_content(Align(table, align="center"))
+    render.refresh_screen()
+
+def select_vocabulary(vocabularies):
+    idx = questionary.text(f"Please select one vocabulary [{1}/{len(vocabularies)}]",
+                           validate=lambda text: validate_index_input(text, len(vocabularies))).ask()
+    return int(idx) - 1
+
+def validate_index_input(idx: str, total_count: int):
+    if not idx.isdigit():
+        return 'Please enter a valid number'
+    idx = int(idx)
+    valid_range = range(1, total_count + 1)
+    if idx not in valid_range:
+        return f'Invalid index'
+    return True
+
+
+class IndexTextValidator(Validator):
+    def validate(self, document: Document) -> None:
+        if len(document.text) == 0:
+            raise ValidationError(message="Please enter a valid number")
+
 
 if __name__ == '__main__':
     main()
