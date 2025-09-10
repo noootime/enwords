@@ -1,7 +1,7 @@
 import os
 from typing import List
 
-from src.models import Vocabulary
+from src.models import Vocabulary, Word
 
 EXAM_DIR = "exams"
 
@@ -19,7 +19,7 @@ def load_vocabularies() -> List[Vocabulary]:
     for i, file in enumerate(files, 1):
         file_path = os.path.join(EXAM_DIR, file)
         with open(file_path, 'r', encoding='utf-8') as f:
-            words = [line.strip() for line in f if line.strip()]
+            words = [Word(line.strip()) for line in f if line.strip()]
         vocabularies.append(Vocabulary(i, file, words))
     return vocabularies
 

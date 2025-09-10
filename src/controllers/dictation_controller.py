@@ -41,7 +41,7 @@ class DictationController:
         incorrect = []
 
         for i in range(self.vocabulary.get_word_count()):
-            answer = self.vocabulary.get_word(i)
+            answer = self.vocabulary.get_word(i).text
             user_answer = self.answers[i]
 
             if answer.lower() == user_answer.lower():
